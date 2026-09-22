@@ -1,0 +1,436 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  OWNER
+  RESCUER
+  REVIEWER
+  ADMIN
+}
+
+enum ProjectStatus {
+  DEVELOPMENT
+  STUCK
+  ABANDONED
+  RESCUE_SUBMITTED
+  UNDER_ASSESSMENT
+  RESCUE_REQUESTED
+  COLLABORATION
+  RECOVERY
+  RESCUED
+  COMPLETED
+}
+
+enum ProjectType {
+  WEB
+  MOBILE
+  DESKTOP
+  API
+  AI_ML
+  DATA
+  EMBEDDED
+  GAME
+  OTHER
+}
+
+enum RescueRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum IssuePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ReviewStatus {
+  PENDING
+  IN_REVIEW
+  COMPLETED
+}
+
+enum MemberRole {
+  CONTRIBUTOR
+  LEAD
+}
+
+enum NotificationType {
+  RESCUE_REQUEST
+  REQUEST_ACCEPTED
+  REQUEST_REJECTED
+  TASK_ASSIGNED
+  TASK_UPDATED
+  ISSUE_CREATED
+  ISSUE_UPDATED
+  REVIEW_SUBMITTED
+  PROJECT_UPDATED
+  RECOVERY_CONFIRMED
+  SYSTEM
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(RESCUER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profile          UserProfile?
+  skills           UserSkill[]
+  ownedProjects    Project[]          @relation("ProjectOwner")
+  rescueRequests   RescueRequest[]
+  memberships      ProjectMember[]
+  assignedTasks    Task[]             @relation("TaskAssignee")
+  progressUpdates  ProgressUpdate[]
+  reviews          Review[]           @relation("Reviewer")
+  notifications    Notification[]
+  confirmedRecoveries Recovery[]      @relation("RecoveryConfirmer")
+  refreshTokens RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model UserProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  bio         String?
+  experience  String?
+  githubUrl   String?
+  portfolioUrl String?
+  location    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Skill {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String?
+  createdAt   DateTime    @default(now())
+
+  users       UserSkill[]
+  projects    ProjectTechnology[]
+}
+
+model UserSkill {
+  id        String   @id @default(cuid())
+  userId    String
+  skillId   String
+  level     String?
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+
+  projects Project[]
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  ownerId     String
+  categoryId  String
+
+  name        String
+  description String
+  targetUsers String?
+  type        ProjectType
+  status      ProjectStatus @default(ABANDONED)
+
+  frontend        String?
+  backend         String?
+  database        String?
+  apis            String?
+  authentication  String?
+  deployment      String?
+  repositoryUrl   String?
+  otherTechnologies String?
+
+  completionPercentage Int      @default(0)
+  lastDevelopmentDate DateTime?
+  knownBugs           String?
+  unfinishedFeatures  String?
+  currentBlockers     String?
+  existingDocumentation String?
+
+  abandonmentReasons String?
+  abandonmentExplanation String?
+
+  rescueReadinessScore Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner          User                 @relation("ProjectOwner", fields: [ownerId], references: [id])
+  category       Category             @relation(fields: [categoryId], references: [id])
+  documentation  ProjectDocumentation?
+  technologies   ProjectTechnology[]
+  rescueRequests RescueRequest[]
+  members        ProjectMember[]
+  tasks          Task[]
+  issues         Issue[]
+  progressUpdates ProgressUpdate[]
+  reviews        Review[]
+  recovery       Recovery?
+  notifications  Notification[]
+
+  @@index([ownerId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([rescueReadinessScore])
+}
+
+model ProjectDocumentation {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+
+  projectOverview      String?
+  architecture         String?
+  setupInstructions    String?
+  environmentRequirements String?
+  knownProblems        String?
+  importantDecisions   String?
+  remainingWork        String?
+  importantResources   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ProjectTechnology {
+  id        String   @id @default(cuid())
+  projectId String
+  skillId   String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, skillId])
+}
+
+model RescueRequest {
+  id        String              @id @default(cuid())
+  projectId String
+  rescuerId String
+  message   String?
+  proposedContribution String?
+  status    RescueRequestStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rescuer User    @relation(fields: [rescuerId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, rescuerId])
+  @@index([projectId])
+  @@index([rescuerId])
+  @@index([status])
+}
+
+
+model ProjectMember {
+  id        String     @id @default(cuid())
+  projectId String
+  userId    String
+  role      MemberRole @default(CONTRIBUTOR)
+  joinedAt  DateTime   @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  projectId   String
+  assignedToId String?
+
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignedTo User?   @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([assignedToId])
+  @@index([status])
+}
+
+model Issue {
+  id        String        @id @default(cuid())
+  projectId String
+
+  title       String
+  description String?
+  status      IssueStatus   @default(OPEN)
+  priority    IssuePriority  @default(MEDIUM)
+  resolvedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model ProgressUpdate {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+
+  title       String
+  description String
+  percentage  Int?
+  createdAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([userId])
+}
+
+model Review {
+  id        String       @id @default(cuid())
+  projectId String
+  reviewerId String
+
+  status        ReviewStatus @default(PENDING)
+  technicalAssessment String?
+  feasibilityAssessment String?
+  recommendations String?
+  recoveryDifficulty String?
+  score          Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reviewer User    @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([reviewerId])
+}
+
+model Recovery {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+  confirmedById String
+
+  meaningfulMilestone String
+  confirmationNotes   String?
+  confirmedAt         DateTime @default(now())
+
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  confirmedBy User    @relation("RecoveryConfirmer", fields: [confirmedById], references: [id])
+
+  @@index([confirmedById])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  projectId String?
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([isRead])
+}
+
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}

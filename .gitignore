@@ -1,0 +1,18 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+/src/generated/prisma
+
+# Generated build output
+dist/
+
+# Local AI/editor tooling
+.agents/
+.claude/
+.cursor/
+.devin/
+.windsurf/
+
+# Tool lock file
+skills-lock.json
