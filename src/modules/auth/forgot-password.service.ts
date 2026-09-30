@@ -25,7 +25,7 @@ export const requestPasswordReset = async (email: string) => {
   if (!user) {
     return {
       message:
-        "If an account with that email exists, a password reset token has been generated.",
+        "If an account with that email exists, a password reset link has been sent.",
     };
   }
 
@@ -47,26 +47,50 @@ export const requestPasswordReset = async (email: string) => {
     Date.now() + RESET_TOKEN_EXPIRY_MINUTES * 60 * 1000
   );
 
-  await prisma.passwordResetToken.create({
-    data: {
-      userId: user.id,
-      tokenHash,
-      expiresAt,
-    },
-  });
+  const createdResetToken =
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      },
+    });
 
- await sendPasswordResetEmail(
-   user.email,
-   resetToken
-  );
+  try {
+    await sendPasswordResetEmail(user.email, resetToken);
+  } catch (error) {
+    // Keep the real provider error in the server logs,
+    // but do not expose it to the user.
+    console.error(
+      "Password reset email failed:",
+      error
+    );
 
-   return {
-     message:
+    // Invalidate the token because the email was not delivered.
+    await prisma.passwordResetToken.update({
+      where: {
+        id: createdResetToken.id,
+      },
+      data: {
+        usedAt: new Date(),
+      },
+    });
+
+    throw new Error(
+      "Unable to send password reset email right now. Please try again later."
+    );
+  }
+
+  return {
+    message:
       "If an account with that email exists, a password reset link has been sent.",
-    };
-}
+  };
+};
 
-export const resetPassword = async (token: string, newPassword: string) => {
+export const resetPassword = async (
+  token: string,
+  newPassword: string
+) => {
   const tokenHash = hashResetToken(token);
 
   const resetToken =
@@ -77,15 +101,21 @@ export const resetPassword = async (token: string, newPassword: string) => {
     });
 
   if (!resetToken) {
-    throw new Error("Invalid or expired password reset token");
+    throw new Error(
+      "Invalid or expired password reset token"
+    );
   }
 
   if (resetToken.usedAt) {
-    throw new Error("Password reset token has already been used");
+    throw new Error(
+      "Password reset token has already been used"
+    );
   }
 
   if (resetToken.expiresAt <= new Date()) {
-    throw new Error("Invalid or expired password reset token");
+    throw new Error(
+      "Invalid or expired password reset token"
+    );
   }
 
   const passwordHash = await bcrypt.hash(
@@ -125,7 +155,6 @@ export const resetPassword = async (token: string, newPassword: string) => {
   });
 
   return {
-    message:
-      "Password has been reset successfully",
+    message: "Password has been reset successfully",
   };
 };
