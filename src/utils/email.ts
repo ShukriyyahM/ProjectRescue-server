@@ -13,10 +13,15 @@ if (!EMAIL_FROM) {
 
 const resend = new Resend(RESEND_API_KEY);
 
-export const sendPasswordResetEmail = async (
-  email: string,
-  resetToken: string
-) => {
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+export const sendPasswordResetEmail = async (email: string, resetToken: string) => {
   const frontendUrl =
     process.env.FRONTEND_URL || "http://localhost:3000";
 
@@ -68,6 +73,55 @@ export const sendPasswordResetEmail = async (
   if (error) {
     throw new Error(
       `Failed to send password reset email: ${error.message}`
+    );
+  }
+
+  return data;
+};
+
+export const sendWelcomeEmail = async (email: string, name: string) => {
+  const safeName = escapeHtml(name);
+
+  const { data, error } = await resend.emails.send({
+    from: EMAIL_FROM,
+    to: [email],
+    subject: "Welcome to ProjectRescue 🎉",
+    html: `
+      <div style="
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #111827;
+      ">
+        <h2>Welcome to ProjectRescue, ${safeName}! 🎉</h2>
+
+        <p>
+          Your ProjectRescue account has been created successfully.
+        </p>
+
+        <p>
+          ProjectRescue helps software project owners and developers
+          connect, organize tasks, and work together to recover
+          unfinished projects.
+        </p>
+
+        <p>
+          We're glad to have you here.
+        </p>
+
+        <p>
+          You can now sign in and start exploring the platform.
+        </p>
+
+        <p style="margin-top: 24px;">
+          — ProjectRescue Team
+        </p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    throw new Error(
+      `Failed to send welcome email: ${error.message}`
     );
   }
 

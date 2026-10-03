@@ -44,24 +44,53 @@ export const confirmRecovery = async (projectId: string, confirmedById: string, 
   const project = await ensureCanConfirmRecovery(confirmedById, projectId);
 
   const existingRecovery = await prisma.recovery.findUnique({
-    where: { projectId },
-  });
+    where: { projectId }});
 
   if (existingRecovery) {
     throw new Error("Project recovery has already been confirmed");
   }
 
-  // A project must have at least one completed task
-  // before recovery can be confirmed.
-  const completedTask = await prisma.task.findFirst({
-     where: {id: data.completedTaskId, projectId, status: "COMPLETED"}
+  // All project tasks must be completed before recovery
+  // can be confirmed.
+  const totalTasks = await prisma.task.count({
+    where: { projectId },
   });
 
- if (!completedTask) {
-  throw new Error(
-    "The selected task must belong to this project and have COMPLETED status"
-  );
- }
+  const completedTasks = await prisma.task.count({
+    where: {
+      projectId,
+      status: "COMPLETED",
+    },
+  });
+
+  if (totalTasks === 0) {
+    throw new Error(
+      "Project must have at least one task before recovery can be confirmed"
+    );
+  }
+
+  if (completedTasks !== totalTasks) {
+    throw new Error(
+      "All project tasks must be completed before recovery can be confirmed"
+    );
+  }
+
+  // Make sure the selected task belongs to this project
+  // and is completed.
+  const completedTask = await prisma.task.findFirst({
+    where: {
+      id: data.completedTaskId,
+      projectId,
+      status: "COMPLETED",
+    },
+  });
+
+  if (!completedTask) {
+    throw new Error(
+      "The selected task must belong to this project and have COMPLETED status"
+    );
+  }
+
   const recovery = await prisma.$transaction(async (tx) => {
     const newRecovery = await tx.recovery.create({
       data: {
@@ -93,16 +122,15 @@ export const confirmRecovery = async (projectId: string, confirmedById: string, 
   });
 
   await sendNotification({
-  userId: project.ownerId,
-  projectId: project.id,
-  type: "RECOVERY_CONFIRMED",
-  title: "Project Recovery Confirmed",
-  message: `The project "${project.name}" has been successfully rescued.`,
- });
+    userId: project.ownerId,
+    projectId: project.id,
+    type: "RECOVERY_CONFIRMED",
+    title: "Project Recovery Confirmed",
+    message: `The project "${project.name}" has been successfully rescued.`,
+  });
 
   return recovery;
 };
-
 export const getProjectRecovery = async (projectId: string) => {
   const project = await prisma.project.findUnique({
     where: { id: projectId },

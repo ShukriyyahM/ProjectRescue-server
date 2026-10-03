@@ -18,10 +18,6 @@ router.post("/", authenticate, createProjectController);
 router.patch("/:id", authenticate, updateProjectController);
 router.delete("/:id", authenticate, deleteProjectController);
 
-router.patch(
-  "/:id/recovery/confirm",
-  authenticate,
-  confirmRecoveryController
-);
+router.patch("/:id/recovery/confirm", authenticate, confirmRecoveryController);
 
 export default router;

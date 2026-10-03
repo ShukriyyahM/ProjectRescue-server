@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import prisma from "../../config/db";
 import { generateAccessToken, generateRefreshToken } from "../../utils/jwt";
 import { hashRefreshToken, getRefreshTokenExpiry } from "../../utils/refresh-token";
+import { sendWelcomeEmail } from "../../utils/email";
 
 interface RegisterData {
   name: string;
@@ -23,24 +24,30 @@ export const registerUser = async (data: RegisterData) => {
 
   const passwordHash = await bcrypt.hash(data.password, 12);
 
-  const user = await prisma.user.create({
-    data: {
-      name: data.name,
-      email: data.email,
-      passwordHash,
-      role: data.role,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      createdAt: true,
-    },
-  });
+ const user = await prisma.user.create({
+  data: {
+    name: data.name,
+    email: data.email,
+    passwordHash,
+    role: data.role,
+  },
+  select: {
+    id: true,
+    name: true,
+    email: true,
+    role: true,
+    createdAt: true,
+  },
+ });
 
-  return user;
-};
+ try {
+  await sendWelcomeEmail(user.email, user.name);
+ } catch (error) {
+  console.error("Welcome email failed:", error);
+ }
+
+ return user;
+ };
 
 interface LoginData {
   email: string;
