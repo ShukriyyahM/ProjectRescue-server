@@ -350,13 +350,13 @@ export const getRescuerDashboard = async (userId: string) => {
       }
 
       if (
-        project.status !== "DEVELOPMENT" &&
-        project.status !== "STUCK"
+        project.status === "RESCUED" ||
+        project.status === "COMPLETED"
       ) {
-        return [];
-      }
+       return [];
+     }
 
-      return [project];
+     return [project];
     }
   );
 

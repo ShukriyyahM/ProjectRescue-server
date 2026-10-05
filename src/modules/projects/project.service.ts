@@ -81,7 +81,7 @@ export const getAllProjects = async (query: ProjectQuery) => {
     }),
   };
 
-  const [projects, total] = await prisma.$transaction([
+  const [projects, total] = await Promise.all([
     prisma.project.findMany({
       where,
       skip,
